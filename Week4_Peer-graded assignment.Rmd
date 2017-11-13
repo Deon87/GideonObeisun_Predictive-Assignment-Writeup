@@ -1,0 +1,128 @@
+---
+title: "Predictive Analytics of Perfect and Imperfect Dumbell Exercises"
+author: "Gideon Obeisun"
+date: "October 29, 2017"
+output: html_document
+---
+
+
+## Introduction
+
+###   Devices such as Jawbone UP, Nike FuelBand, and Fitbit with accelerometers was used to collect large amount of data on physical movements of 6 young healthy participants asked to perform one set of 10 repetitions of Dumbell Biceps Curl in 5 different ways, according to the following methods:perfectly (Class A),throwing the elbows to the front(Class B),lifting the Dumbell halfway (Class C), lowering the Dumbell halfway(Class D), and throwing the hips to the front during the Dumbell exercise(Class E).These participant were male with age from 20-28 years old and with some weight lifting experience.A lightweight 1.25kg Dumbell was used, with arm,belt, forearm, and Dumbell accelerometric sensors used reproductively to conduct the experiment in a safe and controlled environment.The dataset of the experiment is then analyze with the main focus on the "classe"" variable in the dataset,which is the outcome response of the measured data. Pattern in the variable values will be analyzed with Recursive Partitioning and Random Forest predictive algorithms.Subset of the data will be used to train the algorithms to predict the other half of the dataset and 20 different predictor measurements of the experiment.
+
+## Executive Summary
+
+###   The Recursive Partitioning and Random Forest Algorithm was used to predict the outcome of the Dumbell-curl experiment.The experiment datasets were first preprocessed to eliminate null-based values and irrelevant variable columns in the datasets. Model fitting is then performed on the datasets using the two algorithms with 6-folds cross validation,producing an out-of-sample error of less than 50% and achieved out-of-sample accuracy of 99.9% after training the subset of the experiment dataset with the Random Forest predictive algorithm which was proven to be  more reliable than the Recursive Partioning algorithm.
+
+## Loading and Preprocessing the Datasets.
+### The datasets for the project were loaded into R dataframes for further data analysis .A visual observation of the datasets provided for this project with Excel, reveals some NA values in some of the variable columns and some columns seem to be unrelated to the other columns such as,"user_name","raw_time",and "new_window" which were filtered out of the dataframes.
+```{r Loading and Pre-processing pml-training, echo=TRUE,warning=FALSE,message=FALSE} 
+library(caret)
+library(rpart)
+library(randomForest)
+library(ggplot2)
+
+
+setwd("C:/Users/Gideon87/Documents/R/Coursera Practical Machine Learning Course")
+
+pml_Training_Dataset<-read.csv("pml-training.csv",na.strings=c("NA",""))
+
+
+pml_NonNA_Dataset<-pml_Training_Dataset[,colSums(is.na(pml_Training_Dataset)) == 0]
+
+# Partioning the pml_Training_Dataset.
+
+set.seed(32344)
+
+pmlTraining_Index<-createDataPartition(y=pml_NonNA_Dataset$classe,p=0.7,list=FALSE)
+
+pmlCleaner_TrainingData<-pml_NonNA_Dataset[pmlTraining_Index,]
+
+pmlCleaner_TrainingData<-pml_NonNA_Dataset[,-c(1:7)]
+
+pmlCleaner_TestingData<-pml_NonNA_Dataset[-pmlTraining_Index,]
+                               
+
+pmlCleaner_TestingData<-pml_NonNA_Dataset[,-c(1:7)]
+
+```
+
+### Graphical trends can be seen between the accelerometric measurements and the Dumbell-bicep curls performed by the participants.
+
+```{r Graphs,echo=TRUE,message=FALSE,warning=FALSE}
+Total_Values<-which(grepl("^total",colnames(pmlCleaner_TrainingData),ignore.case = F))
+
+Total_Acceleration_Values<-pmlCleaner_TrainingData[,Total_Values]
+
+featurePlot(x=Total_Acceleration_Values,y=pmlCleaner_TrainingData$classe,main="Total Acceleration Vs.Types of Dumbell-Curl Exercises",plot="pairs",pch=20)
+```
+
+## Model Fitting.
+
+### The Recursive Partitioning and Random Forest Predictive alogrithm will be used to increase the reliability of the prediction accuracy the "classe" outcome based on the competitive benchmarked performances of the two algorithms.
+```{r Model Fitting,echo=TRUE,message=FALSE,warning=FALSE}
+
+pmlTraining_Control<-trainControl(method="cv",number=6,allowParallel =TRUE)
+
+ModFit<-train(classe~.,data=pmlCleaner_TrainingData,method="rpart",trControl=pmlTraining_Control)
+
+ModFit
+```
+```{r Random Forest Predictive Model,echo=TRUE,message=FALSE,warning=FALSE}
+# Using the Random Forest predictive model Algorithm.
+
+RF_ModFit<-randomForest(classe~.,data=pmlCleaner_TrainingData,method="class")
+
+RF_ModFit
+
+```
+
+```{r Recursive Partition Predicting Values,echo=TRUE,message=FALSE,warning=FALSE}
+RPart_PredictedValues<-predict(ModFit,pmlCleaner_TestingData)
+
+confusionMatrix(pmlCleaner_TestingData$classe, RPart_PredictedValues)
+
+```
+```{r More Graphs,echo=TRUE,message=FALSE,warning=FALSE}
+plot(ModFit,log="y",xlab="Variable Predictors",ylab="Out-of-Sample Accuracy",
+     main="Recursive Partitioning Predictive Trend ")
+```
+
+```{r Random Forest Prediction,echo=TRUE,message=FALSE,warning=FALSE}
+RF_PredictedValues<-predict(RF_ModFit,pmlCleaner_TestingData,type="class")
+
+confusionMatrix(pmlCleaner_TestingData$classe, RF_PredictedValues)
+```
+## Model Visualization
+
+### From this plot the relative importance of variables used in building the models can be seen. this knowledge can then be used for filtering the datasets for better accuracy from the model training.
+```{r Model Graphs,echo=TRUE,message=FALSE,warning=FALSE}
+ggplot(varImp(ModFit),aes(y=importance))+geom_bar(stat="identity")
+```
+## Predictive Model Testing.
+
+### With out-of-sample accuracy of 99.8%, the Random Forest algorithm proved to be the reliable model to predict the 20 test cases of the experiment's predictor variables for the "problem_id" outcome variable provided in these test cases.
+```{r 20 Case Test Predictions, echo=TRUE,message=FALSE,warning=FALSE}
+pmlTesting_Dataset<-read.csv("pml-testing.csv",na.strings=c("NA",""))
+
+pmlTesting_Dataset2<-pmlTesting_Dataset[,colSums(is.na(pmlTesting_Dataset)) == 0]
+ 
+pmlTesting_Dataset2<-pmlTesting_Dataset2[,-c(1:7)]
+
+TwentyCases_Prediction <- predict(RF_ModFit,pmlTesting_Dataset2)
+
+TwentyCases_Prediction
+```
+
+```{r Graph Analysis and Out-of-Sample Error,echo=TRUE,message= FALSE,warning=FALSE}
+
+OutofSampleError<-1-(sum(RF_PredictedValues==pmlCleaner_TestingData$classe)/length(RF_PredictedValues)) 
+
+OutofSample_Percentage<-OutofSampleError*100
+
+paste0("Out of Sample Error is:",round(OutofSample_Percentage,digit=2),"%")
+
+```
+## Conclusion
+
+###     The Random Forest predictive model seems to be a reliable model to gain the pattern knowledge in the datasets with 99.8% out-of-sample accuracy and negligible out-of-sample error, which could be very dependable for further data analysis. The resulting studies showed that large amount of class B then class A accelerometric measures are rampant, impling that larger amount of body part movements were involved with these classes of the Dumbell-Biceps curl exercises than the other classes of the variations of the exercises performed by the six participants.. 
